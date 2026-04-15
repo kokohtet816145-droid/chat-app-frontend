@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/AuthContext';
 import { useSocket } from '../lib/SocketContext';
 import { FaPaperPlane, FaMicrophone, FaImage, FaArrowLeft } from 'react-icons/fa';
+import { supabase } from '../lib/supabaseClient'; // Supabase Client ထည့်ပါ
 
 const ChatBox = () => {
   const { chatId } = useParams();
@@ -12,9 +13,11 @@ const ChatBox = () => {
   const [newMessage, setNewMessage] = useState('');
   const [typing, setTyping] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
+  const [uploading, setUploading] = useState(false); // Upload state
   const navigate = useNavigate();
   const messagesEndRef = useRef(null);
   const typingTimeoutRef = useRef(null);
+  const fileInputRef = useRef(null); // File input ref
 
   const isOnline = onlineUsers.some(u => u.userId === chatId);
 
@@ -40,6 +43,52 @@ const ChatBox = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  // ပုံတင်ခြင်း Function
+  const handleImageUpload = async (file) => {
+    if (!file) return;
+    setUploading(true);
+    try {
+      // Supabase Storage ထဲကို Upload လုပ်ပါ
+      const fileName = `${Date.now()}_${file.name}`;
+      const { data, error } = await supabase.storage
+        .from('chat-images') // သင့် Bucket နာမည်
+        .upload(fileName, file);
+
+      if (error) throw error;
+
+      // Public URL ရယူပါ
+      const { data: urlData } = supabase.storage
+        .from('chat-images')
+        .getPublicUrl(data.path);
+      const publicUrl = urlData.publicUrl;
+
+      // Image Message ကို Socket ကနေ ပို့ပါ
+      const msg = {
+        sender: { _id: user.uid, username: user.email },
+        content: '',
+        chat: { _id: chatId, users: [{ _id: chatId }] },
+        messageType: 'image',
+        fileUrl: publicUrl,
+      };
+      socket.emit('new message', msg);
+      setMessages(prev => [...prev, { ...msg, sender: { ...msg.sender, _id: user.uid } }]);
+    } catch (error) {
+      console.error('Image upload error:', error);
+      alert('ပုံတင်ခြင်း မအောင်မြင်ပါ။');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  // File Input ပြောင်းလဲမှု ဖမ်းရန်
+  const onFileChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      handleImageUpload(file);
+    }
+    e.target.value = ''; // တူညီတဲ့ပုံ ထပ်ရွေးလို့ရအောင်
+  };
+
   const sendMessage = (e) => {
     e.preventDefault();
     if (!newMessage.trim()) return;
@@ -64,8 +113,15 @@ const ChatBox = () => {
   };
 
   const handleVoiceRecord = () => {
-    // Placeholder for voice recording feature
     alert('Voice message feature coming soon!');
+  };
+
+  // Message Rendering Helper (ပုံဆိုရင် <img> ပြရန်)
+  const renderMessageContent = (msg) => {
+    if (msg.messageType === 'image') {
+      return <img src={msg.fileUrl} alt="sent image" className="max-w-xs rounded-lg" />;
+    }
+    return msg.content;
   };
 
   return (
@@ -93,7 +149,9 @@ const ChatBox = () => {
             key={i}
             className={`chat ${msg.sender._id === user.uid ? 'chat-end' : 'chat-start'}`}
           >
-            <div className="chat-bubble">{msg.content}</div>
+            <div className="chat-bubble p-2">
+              {renderMessageContent(msg)}
+            </div>
           </div>
         ))}
         {typing && (
@@ -106,8 +164,21 @@ const ChatBox = () => {
 
       {/* Input Area */}
       <form onSubmit={sendMessage} className="bg-white p-4 flex items-center gap-2">
-        <button type="button" className="btn btn-ghost btn-circle">
-          <FaImage />
+        {/* Hidden File Input */}
+        <input
+          type="file"
+          accept="image/*"
+          ref={fileInputRef}
+          onChange={onFileChange}
+          style={{ display: 'none' }}
+        />
+        <button
+          type="button"
+          className="btn btn-ghost btn-circle"
+          onClick={() => fileInputRef.current.click()}
+          disabled={uploading}
+        >
+          <FaImage className={uploading ? 'animate-pulse' : ''} />
         </button>
         <button
           type="button"
@@ -130,9 +201,10 @@ const ChatBox = () => {
           className="input input-bordered flex-1"
           value={newMessage}
           onChange={handleTyping}
-          placeholder="Type a message..."
+          placeholder={uploading ? "ပုံတင်နေသည်..." : "စာရိုက်ပါ..."}
+          disabled={uploading}
         />
-        <button type="submit" className="btn btn-primary btn-circle">
+        <button type="submit" className="btn btn-primary btn-circle" disabled={uploading}>
           <FaPaperPlane />
         </button>
       </form>

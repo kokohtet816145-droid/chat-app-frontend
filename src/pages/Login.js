@@ -1,20 +1,21 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../App.css';
-import { auth } from '../firebase';
+import { auth, db } from '../firebase';
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   onAuthStateChanged
 } from 'firebase/auth';
+import { doc, setDoc } from 'firebase/firestore';
 
 function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLogin, setIsLogin] = useState(true);
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
-  // Check if user is already logged in
   React.useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       if (currentUser) {
@@ -26,18 +27,36 @@ function Login() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setLoading(true);
     try {
       if (isLogin) {
+        // Login
         await signInWithEmailAndPassword(auth, email, password);
         alert('အောင်မြင်စွာ ဝင်ရောက်ပြီးပါပြီ။');
         navigate('/chats');
       } else {
-        await createUserWithEmailAndPassword(auth, email, password);
+        // Register
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        const user = userCredential.user;
+
+        // Firestore ထဲမှာ User Document ဖန်တီးပါ
+        await setDoc(doc(db, "users", user.uid), {
+          uid: user.uid,
+          email: user.email,
+          username: email.split('@')[0],
+          isAdmin: false,
+          createdAt: new Date().toISOString(),
+          profilePic: "",
+          bio: ""
+        });
+
         alert('အကောင့်သစ် ဖန်တီးပြီးပါပြီ။');
         navigate('/chats');
       }
     } catch (error) {
       alert('Error: ' + error.message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -59,6 +78,7 @@ function Login() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
+            disabled={loading}
           />
           <input
             type="password"
@@ -66,8 +86,11 @@ function Login() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
+            disabled={loading}
           />
-          <button type="submit">{isLogin ? 'ဝင်ရောက်မည်' : 'မှတ်ပုံတင်မည်'}</button>
+          <button type="submit" disabled={loading}>
+            {loading ? 'ဆောင်ရွက်နေသည်...' : (isLogin ? 'ဝင်ရောက်မည်' : 'မှတ်ပုံတင်မည်')}
+          </button>
         </form>
         <p
           style={{ marginTop: '15px', cursor: 'pointer', color: '#764ba2' }}
