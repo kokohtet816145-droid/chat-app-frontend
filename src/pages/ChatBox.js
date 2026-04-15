@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/AuthContext';
 import { useSocket } from '../lib/SocketContext';
 import { FaPaperPlane, FaMicrophone, FaImage, FaArrowLeft } from 'react-icons/fa';
-import { supabase } from '../lib/supabaseClient'; // Supabase Client ထည့်ပါ
+import { supabase } from '../lib/supabaseClient';
 
 const ChatBox = () => {
   const { chatId } = useParams();
@@ -13,11 +13,11 @@ const ChatBox = () => {
   const [newMessage, setNewMessage] = useState('');
   const [typing, setTyping] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
-  const [uploading, setUploading] = useState(false); // Upload state
+  const [uploading, setUploading] = useState(false);
   const navigate = useNavigate();
   const messagesEndRef = useRef(null);
   const typingTimeoutRef = useRef(null);
-  const fileInputRef = useRef(null); // File input ref
+  const fileInputRef = useRef(null);
 
   const isOnline = onlineUsers.some(u => u.userId === chatId);
 
@@ -43,26 +43,22 @@ const ChatBox = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // ပုံတင်ခြင်း Function
   const handleImageUpload = async (file) => {
     if (!file) return;
     setUploading(true);
     try {
-      // Supabase Storage ထဲကို Upload လုပ်ပါ
       const fileName = `${Date.now()}_${file.name}`;
       const { data, error } = await supabase.storage
-        .from('chat-images') // သင့် Bucket နာမည်
+        .from('chat-images')
         .upload(fileName, file);
 
       if (error) throw error;
 
-      // Public URL ရယူပါ
       const { data: urlData } = supabase.storage
         .from('chat-images')
         .getPublicUrl(data.path);
       const publicUrl = urlData.publicUrl;
 
-      // Image Message ကို Socket ကနေ ပို့ပါ
       const msg = {
         sender: { _id: user.uid, username: user.email },
         content: '',
@@ -80,13 +76,12 @@ const ChatBox = () => {
     }
   };
 
-  // File Input ပြောင်းလဲမှု ဖမ်းရန်
   const onFileChange = (e) => {
     const file = e.target.files[0];
     if (file) {
       handleImageUpload(file);
     }
-    e.target.value = ''; // တူညီတဲ့ပုံ ထပ်ရွေးလို့ရအောင်
+    e.target.value = '';
   };
 
   const sendMessage = (e) => {
@@ -116,17 +111,16 @@ const ChatBox = () => {
     alert('Voice message feature coming soon!');
   };
 
-  // Message Rendering Helper (ပုံဆိုရင် <img> ပြရန်)
   const renderMessageContent = (msg) => {
     if (msg.messageType === 'image') {
-      return <img src={msg.fileUrl} alt="sent image" className="max-w-xs rounded-lg" />;
+      // eslint-disable-next-line jsx-a11y/img-redundant-alt
+      return <img src={msg.fileUrl} alt="Sent content" className="max-w-xs rounded-lg" />;
     }
     return msg.content;
   };
 
   return (
     <div className="flex flex-col h-screen bg-gray-100">
-      {/* Header */}
       <div className="bg-white p-4 shadow flex items-center gap-3">
         <button className="btn btn-ghost btn-circle md:hidden" onClick={() => navigate('/chats')}>
           <FaArrowLeft />
@@ -142,7 +136,6 @@ const ChatBox = () => {
         </div>
       </div>
 
-      {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4">
         {messages.map((msg, i) => (
           <div
@@ -162,9 +155,7 @@ const ChatBox = () => {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input Area */}
       <form onSubmit={sendMessage} className="bg-white p-4 flex items-center gap-2">
-        {/* Hidden File Input */}
         <input
           type="file"
           accept="image/*"
