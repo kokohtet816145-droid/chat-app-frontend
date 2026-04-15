@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { useAuth } from '../lib/AuthContext';
 import { useSocket } from '../lib/SocketContext';
 import { useNavigate } from 'react-router-dom';
 import { FaSearch, FaPlus, FaBars, FaSignOutAlt } from 'react-icons/fa';
@@ -7,13 +6,13 @@ import { signOut } from 'firebase/auth';
 import { auth } from '../firebase';
 
 const Chats = () => {
-  const { user } = useAuth(); // သုံးမထားပေမယ့် ထားချင်ရင် ဒီအတိုင်းထား၊ မဟုတ်ရင် ဖြုတ်ပါ
   const { onlineUsers } = useSocket();
   const [searchTerm, setSearchTerm] = useState('');
   const [users, setUsers] = useState([]);
   const navigate = useNavigate();
 
   useEffect(() => {
+    // TODO: Fetch real users from Firebase
     setUsers([
       { _id: '1', username: 'HtetWaiPhyo', isAdmin: true, profilePic: '' },
       { _id: '2', username: 'Aung Aung', isAdmin: false, profilePic: '' },
@@ -34,7 +33,9 @@ const Chats = () => {
 
   return (
     <div className="flex h-screen bg-gray-100">
+      {/* Left Sidebar */}
       <div className="w-full md:w-1/3 lg:w-1/4 bg-white border-r flex flex-col">
+        {/* Header */}
         <div className="p-4 border-b flex justify-between items-center">
           <h2 className="text-xl font-bold">Chats</h2>
           <div className="flex gap-2">
@@ -54,6 +55,7 @@ const Chats = () => {
           </div>
         </div>
 
+        {/* Online Users Stories */}
         <div className="p-2 border-b flex gap-2 overflow-x-auto">
           <button className="btn btn-circle btn-sm bg-gray-200">
             <FaPlus />
@@ -67,6 +69,7 @@ const Chats = () => {
           ))}
         </div>
 
+        {/* Search Bar */}
         <div className="p-2">
           <input
             type="text"
@@ -77,6 +80,7 @@ const Chats = () => {
           />
         </div>
 
+        {/* Chat List */}
         <div className="overflow-y-auto flex-1">
           {filteredUsers.map(u => (
             <div
@@ -106,6 +110,8 @@ const Chats = () => {
           ))}
         </div>
       </div>
+
+      {/* Right side placeholder */}
       <div className="hidden md:flex md:w-2/3 lg:w-3/4 items-center justify-center bg-gray-50">
         <p className="text-gray-400">Select a chat to start messaging</p>
       </div>
