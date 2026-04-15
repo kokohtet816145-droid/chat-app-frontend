@@ -1,3 +1,5 @@
+import VConsole from 'vconsole';
+const vConsole = new VConsole();
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import './index.css';
