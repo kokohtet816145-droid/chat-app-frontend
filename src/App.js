@@ -13,16 +13,47 @@ function ProtectedRoute({ children }) {
   return user ? children : <Navigate to="/login" />;
 }
 
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true };
+  }
+  componentDidCatch(error, errorInfo) {
+    this.setState({ error });
+    console.error('Caught error:', error, errorInfo);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ color: 'red', padding: '20px', background: '#fee', minHeight: '100vh' }}>
+          <h1>Something went wrong.</h1>
+          <p><strong>Error:</strong> {this.state.error?.message}</p>
+          <details style={{ whiteSpace: 'pre-wrap' }}>
+            <summary>Stack trace</summary>
+            <pre>{this.state.error?.stack}</pre>
+          </details>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 function App() {
   return (
     <BrowserRouter>
-      <AuthProvider>
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route path="/chats" element={<ProtectedRoute><Chats /></ProtectedRoute>} />
-          <Route path="/" element={<Navigate to="/login" />} />
-        </Routes>
-      </AuthProvider>
+      <ErrorBoundary>
+        <AuthProvider>
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route path="/chats" element={<ProtectedRoute><Chats /></ProtectedRoute>} />
+            <Route path="/" element={<Navigate to="/login" />} />
+          </Routes>
+        </AuthProvider>
+      </ErrorBoundary>
     </BrowserRouter>
   );
 }
