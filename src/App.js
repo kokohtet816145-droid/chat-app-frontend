@@ -1,6 +1,4 @@
-cd ~/chat-app/frontend
-cat > src/App.js << 'EOF'
-import React from 'react';
+	mport React from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import './index.css';
 
@@ -35,4 +33,3 @@ function App() {
 }
 
 export default App;
-EDF
