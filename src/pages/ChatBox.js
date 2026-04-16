@@ -10,8 +10,11 @@ function ChatBox() {
   const { socket, onlineUsers } = useSocket();
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
+  const [typing, setTyping] = useState(false);
+  const [isTyping, setIsTyping] = useState(false);
   const navigate = useNavigate();
   const messagesEndRef = useRef(null);
+  const typingTimeoutRef = useRef(null);
 
   const isOnline = onlineUsers.some(u => u.userId === chatId);
 
@@ -21,10 +24,14 @@ function ChatBox() {
       socket.on('message received', (msg) => {
         setMessages(prev => [...prev, msg]);
       });
+      socket.on('typing', () => setTyping(true));
+      socket.on('stop typing', () => setTyping(false));
     }
     return () => {
       if (socket) {
         socket.off('message received');
+        socket.off('typing');
+        socket.off('stop typing');
       }
     };
   }, [socket, chatId]);
@@ -45,6 +52,20 @@ function ChatBox() {
     socket.emit('new message', msg);
     setMessages(prev => [...prev, { ...msg, sender: { ...msg.sender, _id: user.uid } }]);
     setNewMessage('');
+    socket.emit('stop typing', chatId);
+  };
+
+  const handleTyping = (e) => {
+    setNewMessage(e.target.value);
+    if (!isTyping) {
+      socket.emit('typing', chatId);
+      setIsTyping(true);
+    }
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    typingTimeoutRef.current = setTimeout(() => {
+      socket.emit('stop typing', chatId);
+      setIsTyping(false);
+    }, 1000);
   };
 
   return (
@@ -76,6 +97,11 @@ function ChatBox() {
             <div className="chat-bubble">{msg.content}</div>
           </div>
         ))}
+        {typing && (
+          <div className="chat chat-start">
+            <div className="chat-bubble italic text-gray-500">Typing...</div>
+          </div>
+        )}
         <div ref={messagesEndRef} />
       </div>
 
@@ -84,7 +110,7 @@ function ChatBox() {
           type="text"
           className="input input-bordered flex-1"
           value={newMessage}
-          onChange={(e) => setNewMessage(e.target.value)}
+          onChange={handleTyping}
           placeholder="Type a message..."
         />
         <button type="submit" className="btn btn-primary btn-circle">
