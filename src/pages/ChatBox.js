@@ -7,11 +7,13 @@ import { FaPaperPlane, FaArrowLeft } from 'react-icons/fa';
 function ChatBox() {
   const { chatId } = useParams();
   const { user } = useAuth();
-  const { socket } = useSocket();
+  const { socket, onlineUsers } = useSocket();
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
   const navigate = useNavigate();
   const messagesEndRef = useRef(null);
+
+  const isOnline = onlineUsers.some(u => u.userId === chatId);
 
   useEffect(() => {
     if (socket) {
@@ -47,7 +49,6 @@ function ChatBox() {
 
   return (
     <div className="flex flex-col h-screen bg-gray-100">
-      {/* Header */}
       <div className="bg-white p-4 shadow flex items-center gap-3">
         <button className="btn btn-ghost btn-circle" onClick={() => navigate('/chats')}>
           <FaArrowLeft />
@@ -59,11 +60,16 @@ function ChatBox() {
         </div>
         <div>
           <h3 className="font-bold">User {chatId}</h3>
-          <p className="text-sm text-gray-500">Online</p>
+          <p className="text-sm text-gray-500">
+            {isOnline ? (
+              <span className="text-green-500">● Online</span>
+            ) : (
+              <span className="text-gray-400">○ Offline</span>
+            )}
+          </p>
         </div>
       </div>
 
-      {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4">
         {messages.map((msg, i) => (
           <div key={i} className={`chat ${msg.sender._id === user.uid ? 'chat-end' : 'chat-start'}`}>
@@ -73,7 +79,6 @@ function ChatBox() {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input */}
       <form onSubmit={sendMessage} className="bg-white p-4 flex items-center gap-2">
         <input
           type="text"
