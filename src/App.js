@@ -35,6 +35,4 @@ function App() {
 }
 
 export default App;
-EOF
-
-git add . && git commit -m "Test Tailwind and DaisyUI" && git push
+EDF
