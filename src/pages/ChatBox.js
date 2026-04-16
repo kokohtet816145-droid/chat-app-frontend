@@ -86,7 +86,11 @@ function ChatBox() {
         .from('chat-images')
         .upload(fileName, file);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase upload error:', error);
+        alert('Upload Error: ' + error.message);
+        return;
+      }
 
       const { data: urlData } = supabase.storage
         .from('chat-images')
@@ -104,7 +108,7 @@ function ChatBox() {
       setMessages(prev => [...prev, { ...msg, sender: { ...msg.sender, _id: user.uid } }]);
     } catch (error) {
       console.error('Image upload error:', error);
-      alert('ပုံတင်ခြင်း မအောင်မြင်ပါ။');
+      alert('Unexpected Error: ' + error.message);
     } finally {
       setUploading(false);
     }
