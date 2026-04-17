@@ -5,6 +5,7 @@ import { SocketProvider } from './lib/SocketContext';
 import Login from './pages/Login';
 import Chats from './pages/Chats';
 import ChatBox from './pages/ChatBox';
+import AdminPanel from './pages/AdminPanel';
 import './App.css';
 
 function ProtectedRoute({ children }) {
@@ -20,6 +21,7 @@ function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/chats" element={<ProtectedRoute><Chats /></ProtectedRoute>} />
           <Route path="/chat/:chatId" element={<ProtectedRoute><ChatBox /></ProtectedRoute>} />
+          <Route path="/admin" element={<ProtectedRoute><AdminPanel /></ProtectedRoute>} />
           <Route path="/" element={<Navigate to="/login" />} />
         </Routes>
       </SocketProvider>
