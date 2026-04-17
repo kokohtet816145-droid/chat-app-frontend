@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/AuthContext';
 import { useSocket } from '../lib/SocketContext';
 import { supabase } from '../lib/supabaseClient';
-import { FaPaperPlane, FaMicrophone, FaImage, FaArrowLeft } from 'react-icons/fa';
+import { FaPaperPlane, FaMicrophone, FaImage, FaArrowLeft, FaStop } from 'react-icons/fa';
 
 function ChatBox() {
   const { chatId } = useParams();
@@ -19,6 +19,8 @@ function ChatBox() {
   const messagesEndRef = useRef(null);
   const typingTimeoutRef = useRef(null);
   const fileInputRef = useRef(null);
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
 
   const isOnline = onlineUsers.some(u => u.userId === chatId);
 
@@ -73,8 +75,70 @@ function ChatBox() {
     }, 1000);
   };
 
-  const handleVoiceRecord = () => {
-    alert('Voice message feature coming soon!');
+  // Voice Recording Logic
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaRecorderRef.current = new MediaRecorder(stream);
+      audioChunksRef.current = [];
+
+      mediaRecorderRef.current.ondataavailable = (e) => {
+        audioChunksRef.current.push(e.data);
+      };
+
+      mediaRecorderRef.current.onstop = async () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        await uploadVoiceMessage(audioBlob);
+        stream.getTracks().forEach(track => track.stop());
+      };
+
+      mediaRecorderRef.current.start();
+      setIsRecording(true);
+    } catch (error) {
+      alert('Microphone access denied or not available');
+      console.error(error);
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+    }
+  };
+
+  const uploadVoiceMessage = async (audioBlob) => {
+    setUploading(true);
+    try {
+      const fileName = `voice_${Date.now()}.webm`;
+      const { data, error } = await supabase.storage
+        .from('chat-images')
+        .upload(fileName, audioBlob, { contentType: 'audio/webm' });
+
+      if (error) {
+        alert('Voice upload error: ' + error.message);
+        return;
+      }
+
+      const { data: urlData } = supabase.storage
+        .from('chat-images')
+        .getPublicUrl(data.path);
+      const publicUrl = urlData.publicUrl;
+
+      const msg = {
+        sender: { _id: user.uid, username: user.email },
+        content: '',
+        chat: { _id: chatId, users: [{ _id: chatId }] },
+        messageType: 'voice',
+        fileUrl: publicUrl,
+      };
+      socket.emit('new message', msg);
+      setMessages(prev => [...prev, { ...msg, sender: { ...msg.sender, _id: user.uid } }]);
+    } catch (error) {
+      alert('Unexpected Error: ' + error.message);
+    } finally {
+      setUploading(false);
+    }
   };
 
   const handleImageUpload = async (file) => {
@@ -123,6 +187,13 @@ function ChatBox() {
   const renderMessageContent = (msg) => {
     if (msg.messageType === 'image') {
       return <img src={msg.fileUrl} alt="Shared content" className="max-w-xs rounded-lg" />;
+    } else if (msg.messageType === 'voice') {
+      return (
+        <audio controls className="max-w-xs">
+          <source src={msg.fileUrl} type="audio/webm" />
+          Your browser does not support the audio element.
+        </audio>
+      );
     }
     return msg.content;
   };
@@ -185,25 +256,21 @@ function ChatBox() {
         <button
           type="button"
           className={`btn btn-ghost btn-circle ${isRecording ? 'text-red-500' : ''}`}
-          onTouchStart={() => setIsRecording(true)}
-          onTouchEnd={() => {
-            setIsRecording(false);
-            handleVoiceRecord();
-          }}
-          onMouseDown={() => setIsRecording(true)}
-          onMouseUp={() => {
-            setIsRecording(false);
-            handleVoiceRecord();
-          }}
+          onTouchStart={startRecording}
+          onTouchEnd={stopRecording}
+          onMouseDown={startRecording}
+          onMouseUp={stopRecording}
+          onMouseLeave={stopRecording}
+          disabled={uploading}
         >
-          <FaMicrophone />
+          {isRecording ? <FaStop /> : <FaMicrophone />}
         </button>
         <input
           type="text"
           className="input input-bordered flex-1"
           value={newMessage}
           onChange={handleTyping}
-          placeholder={uploading ? "ပုံတင်နေသည်..." : "စာရိုက်ပါ..."}
+          placeholder={uploading ? "ပို့နေသည်..." : "စာရိုက်ပါ..."}
           disabled={uploading}
         />
         <button type="submit" className="btn btn-primary btn-circle" disabled={uploading}>
