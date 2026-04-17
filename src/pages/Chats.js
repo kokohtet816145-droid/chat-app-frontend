@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/AuthContext';
-import { useSocket } from '../lib/SocketContext';
 import { db } from '../firebase';
 import { collection, getDocs } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
@@ -9,13 +8,9 @@ import { auth } from '../firebase';
 
 function Chats() {
   const { user } = useAuth();
-  const { onlineUsers } = useSocket();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
   const navigate = useNavigate();
-
-  const isUserOnline = (userId) => onlineUsers.some(u => u.userId === userId);
 
   useEffect(() => {
     const fetchUsers = async () => {
@@ -30,7 +25,6 @@ function Chats() {
         setUsers(usersList);
       } catch (error) {
         console.error("Error fetching users:", error);
-        setError(error.message);
       } finally {
         setLoading(false);
       }
@@ -43,8 +37,13 @@ function Chats() {
     navigate('/login');
   };
 
-  if (loading) return <div className="flex h-screen items-center justify-center"><span className="loading loading-spinner loading-lg"></span></div>;
-  if (error) return <div className="flex h-screen items-center justify-center text-red-500">Error: {error}</div>;
+  if (loading) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <span className="loading loading-spinner loading-lg"></span>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen bg-gray-100">
@@ -55,7 +54,7 @@ function Chats() {
         </div>
         <div className="overflow-y-auto h-[calc(100vh-64px)]">
           {users.length === 0 ? (
-            <p className="text-center text-gray-500 p-4">No users found.</p>
+            <p className="text-center text-gray-500 p-4">No users found. Please register another account.</p>
           ) : (
             users.map(u => (
               <div
@@ -68,15 +67,9 @@ function Chats() {
                     <span>{u.username?.charAt(0)}</span>
                   </div>
                 </div>
-                <div className="flex-1">
+                <div>
                   <p className="font-semibold">{u.username}</p>
-                  <p className="text-sm text-gray-500">
-                    {isUserOnline(u.id) ? (
-                      <span className="text-green-500">● Online</span>
-                    ) : (
-                      <span className="text-gray-400">○ Offline</span>
-                    )}
-                  </p>
+                  <p className="text-sm text-gray-500">{u.email}</p>
                 </div>
               </div>
             ))
