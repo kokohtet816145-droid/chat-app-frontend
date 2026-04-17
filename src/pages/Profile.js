@@ -40,9 +40,6 @@ function Profile() {
 
   const handleProfilePicUpload = async (file) => {
     if (!file) return;
-    if (file.size > 5 * 1024 * 1024) { alert('File size must be less than 5MB'); return; }
-    if (!file.type.startsWith('image/')) { alert('Only image files are allowed'); return; }
-    
     setUploading(true);
     try {
       const fileExt = file.name.split('.').pop();
@@ -66,7 +63,6 @@ function Profile() {
       
       alert('Profile picture updated!');
     } catch (error) {
-      console.error('Upload error:', error);
       alert('Upload failed: ' + error.message);
     } finally {
       setUploading(false);
