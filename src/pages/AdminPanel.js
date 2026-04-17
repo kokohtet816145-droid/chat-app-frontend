@@ -3,12 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/AuthContext';
 import { db } from '../firebase';
 import { collection, getDocs, doc, updateDoc } from 'firebase/firestore';
-import { FaArrowLeft, FaCrown, FaUserShield } from 'react-icons/fa';
+import { FaArrowLeft, FaCrown, FaUserShield, FaSearch } from 'react-icons/fa';
 
 function AdminPanel() {
   const { user } = useAuth();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -43,7 +44,6 @@ function AdminPanel() {
   };
 
   const handleToggleAdmin = async (userId, currentStatus) => {
-    // Prevent self-demotion if you're the only admin? (Optional logic)
     try {
       await updateDoc(doc(db, "users", userId), {
         isAdmin: !currentStatus
@@ -55,6 +55,11 @@ function AdminPanel() {
       alert('Error: ' + error.message);
     }
   };
+
+  const filteredUsers = users.filter(u => 
+    u.username?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    u.email?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   if (loading) {
     return (
@@ -77,6 +82,20 @@ function AdminPanel() {
           </h1>
         </div>
 
+        {/* Search Bar */}
+        <div className="mb-4">
+          <div className="relative">
+            <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search by username or email..."
+              className="input input-bordered w-full pl-10"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+        </div>
+
         <div className="overflow-x-auto bg-white rounded-lg shadow">
           <table className="table w-full">
             <thead>
@@ -89,7 +108,7 @@ function AdminPanel() {
               </tr>
             </thead>
             <tbody>
-              {users.map(u => (
+              {filteredUsers.map(u => (
                 <tr key={u.id}>
                   <td>
                     <div className="flex items-center gap-2">
@@ -100,7 +119,7 @@ function AdminPanel() {
                       </div>
                       <span className="font-semibold">{u.username}</span>
                       {u.isAdmin && (
-                        <div className="badge badge-warning gap-1 animate-pulse">
+                        <div className="badge badge-warning gap-1 animate-pulse shadow-lg">
                           <FaCrown className="text-yellow-500" />
                           Admin
                         </div>

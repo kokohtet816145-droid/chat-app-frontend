@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../lib/AuthContext';
 import { useSocket } from '../lib/SocketContext';
 import { db } from '../firebase';
 import { collection, getDocs } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
 import { auth } from '../firebase';
-import { FaSignOutAlt, FaUserShield, FaSearch, FaPlus } from 'react-icons/fa';
+import { FaSignOutAlt, FaUserShield, FaSearch, FaUserCircle } from 'react-icons/fa';
+import StoryUpload from '../components/StoryUpload';
 
 function Chats() {
   const { user } = useAuth();
@@ -24,9 +25,7 @@ function Chats() {
         const querySnapshot = await getDocs(collection(db, "users"));
         const usersList = [];
         querySnapshot.forEach((doc) => {
-          if (doc.id !== user?.uid) {
-            usersList.push({ id: doc.id, ...doc.data() });
-          }
+          usersList.push({ id: doc.id, ...doc.data() });
         });
         setUsers(usersList);
       } catch (error) {
@@ -36,7 +35,7 @@ function Chats() {
       }
     };
     fetchUsers();
-  }, [user]);
+  }, []);
 
   const handleLogout = async () => {
     await signOut(auth);
@@ -44,8 +43,9 @@ function Chats() {
   };
 
   const filteredUsers = users.filter(u =>
-    u.username?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    u.email?.toLowerCase().includes(searchTerm.toLowerCase())
+    u.id !== user?.uid &&
+    (u.username?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    u.email?.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
   if (loading) {
@@ -67,20 +67,21 @@ function Chats() {
           <div className="flex gap-2">
             {isAdmin && (
               <button className="btn btn-ghost btn-circle" onClick={() => navigate('/admin')} title="Admin Panel">
-                <FaUserShield />
+                <FaUserShield className="text-warning" />
               </button>
             )}
+            <Link to="/profile" className="btn btn-ghost btn-circle">
+              <FaUserCircle />
+            </Link>
             <button className="btn btn-ghost btn-circle" onClick={handleLogout}>
               <FaSignOutAlt />
             </button>
           </div>
         </div>
 
-        {/* Story Bar Placeholder */}
+        {/* Story Bar */}
         <div className="p-2 border-b flex gap-2 overflow-x-auto">
-          <button className="btn btn-circle btn-sm bg-gray-200">
-            <FaPlus />
-          </button>
+          <StoryUpload />
           {users.filter(u => isUserOnline(u.id)).slice(0, 5).map(u => (
             <div key={u.id} className="avatar placeholder">
               <div className="bg-green-500 text-white rounded-full w-10">
@@ -119,7 +120,7 @@ function Chats() {
               <div className="flex-1">
                 <div className="flex justify-between">
                   <span className="font-semibold">{u.username}</span>
-                  {u.isAdmin && <span className="badge badge-primary badge-sm">Admin</span>}
+                  {u.isAdmin && <span className="badge badge-warning badge-sm animate-pulse">Admin</span>}
                 </div>
                 <p className="text-sm text-gray-500">
                   {isUserOnline(u.id) ? (
