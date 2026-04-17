@@ -1,5 +1,6 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { AuthProvider } from './lib/AuthContext';
 import './index.css';
 
 function Login() {
@@ -23,11 +24,13 @@ function Chats() {
 function App() {
   return (
     <BrowserRouter>
-      <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route path="/chats" element={<Chats />} />
-        <Route path="/" element={<Login />} />
-      </Routes>
+      <AuthProvider>
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route path="/chats" element={<Chats />} />
+          <Route path="/" element={<Login />} />
+        </Routes>
+      </AuthProvider>
     </BrowserRouter>
   );
 }
