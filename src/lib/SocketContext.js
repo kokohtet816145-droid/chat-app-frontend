@@ -12,7 +12,7 @@ export const SocketProvider = ({ children }) => {
 
   useEffect(() => {
     if (user) {
-      const newSocket = io('https://chat-app-backend-2-rhx3.onrender.com');
+      const newSocket = io('https://chat-app-backend-1-yjaj.onrender.com');
       setSocket(newSocket);
       newSocket.emit('setup', user.uid);
       newSocket.on('get online users', (users) => setOnlineUsers(users));
