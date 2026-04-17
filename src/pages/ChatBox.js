@@ -3,8 +3,6 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/AuthContext';
 import { useSocket } from '../lib/SocketContext';
 import { supabase } from '../lib/supabaseClient';
-import { db } from '../firebase';
-import { collection, addDoc, query, where, orderBy, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { FaPaperPlane, FaMicrophone, FaImage, FaArrowLeft, FaStop } from 'react-icons/fa';
 
 function ChatBox() {
@@ -26,44 +24,32 @@ function ChatBox() {
 
   const isOnline = onlineUsers.some(u => u.userId === chatId);
 
-  // Fetch message history from Firestore - FIXED QUERY
+  // Load message history from Local Storage
   useEffect(() => {
-    if (!chatId) return;
-    
-    // Query messages WHERE chatId == current chatId
-    const q = query(
-      collection(db, "messages"),
-      where("chatId", "==", chatId),
-      orderBy("timestamp", "asc")
-    );
-    
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const msgs = [];
-      snapshot.forEach((doc) => {
-        msgs.push({ id: doc.id, ...doc.data() });
-      });
-      console.log('Messages loaded:', msgs.length, 'for chat:', chatId);
-      setMessages(msgs);
-    }, (error) => {
-      console.error("Error fetching messages:", error);
-    });
-    
-    return () => unsubscribe();
+    const storageKey = `chat_messages_${chatId}`;
+    const savedMessages = localStorage.getItem(storageKey);
+    if (savedMessages) {
+      try {
+        setMessages(JSON.parse(savedMessages));
+      } catch (error) {
+        console.error("Error loading messages:", error);
+      }
+    }
   }, [chatId]);
+
+  // Save messages to Local Storage whenever they change
+  useEffect(() => {
+    if (messages.length > 0) {
+      const storageKey = `chat_messages_${chatId}`;
+      localStorage.setItem(storageKey, JSON.stringify(messages));
+    }
+  }, [messages, chatId]);
 
   useEffect(() => {
     if (socket) {
       socket.emit('join chat', chatId);
       socket.on('message received', (msg) => {
-        // Message ကို Firestore မှာ သိမ်းပါ
-        addDoc(collection(db, "messages"), {
-          chatId: chatId,
-          senderId: msg.sender._id,
-          content: msg.content || '',
-          messageType: msg.messageType || 'text',
-          fileUrl: msg.fileUrl || '',
-          timestamp: serverTimestamp()
-        });
+        setMessages(prev => [...prev, { ...msg, timestamp: new Date().toISOString() }]);
       });
       socket.on('typing', () => setTyping(true));
       socket.on('stop typing', () => setTyping(false));
@@ -81,7 +67,7 @@ function ChatBox() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const sendMessage = async (e) => {
+  const sendMessage = (e) => {
     e.preventDefault();
     if (!newMessage.trim()) return;
     const msg = {
@@ -89,11 +75,10 @@ function ChatBox() {
       content: newMessage,
       chat: { _id: chatId, users: [{ _id: chatId }] },
       messageType: 'text',
+      timestamp: new Date().toISOString(),
     };
     socket.emit('new message', msg);
-    
-    // Optimistic UI update
-    setMessages(prev => [...prev, { ...msg, sender: { ...msg.sender, _id: user.uid }, timestamp: new Date() }]);
+    setMessages(prev => [...prev, { ...msg, sender: { ...msg.sender, _id: user.uid } }]);
     setNewMessage('');
     socket.emit('stop typing', chatId);
     setIsTyping(false);
@@ -168,9 +153,10 @@ function ChatBox() {
         chat: { _id: chatId, users: [{ _id: chatId }] },
         messageType: 'voice',
         fileUrl: publicUrl,
+        timestamp: new Date().toISOString(),
       };
       socket.emit('new message', msg);
-      setMessages(prev => [...prev, { ...msg, sender: { ...msg.sender, _id: user.uid }, timestamp: new Date() }]);
+      setMessages(prev => [...prev, { ...msg, sender: { ...msg.sender, _id: user.uid } }]);
     } catch (error) {
       alert('Unexpected Error: ' + error.message);
     } finally {
@@ -203,9 +189,10 @@ function ChatBox() {
         chat: { _id: chatId, users: [{ _id: chatId }] },
         messageType: 'image',
         fileUrl: publicUrl,
+        timestamp: new Date().toISOString(),
       };
       socket.emit('new message', msg);
-      setMessages(prev => [...prev, { ...msg, sender: { ...msg.sender, _id: user.uid }, timestamp: new Date() }]);
+      setMessages(prev => [...prev, { ...msg, sender: { ...msg.sender, _id: user.uid } }]);
     } catch (error) {
       alert('Unexpected Error: ' + error.message);
     } finally {
@@ -260,7 +247,7 @@ function ChatBox() {
 
       <div className="flex-1 overflow-y-auto p-4">
         {messages.map((msg, i) => (
-          <div key={msg.id || i} className={`chat ${msg.senderId === user.uid || msg.sender?._id === user.uid ? 'chat-end' : 'chat-start'}`}>
+          <div key={msg.id || i} className={`chat ${msg.sender._id === user.uid ? 'chat-end' : 'chat-start'}`}>
             <div className="chat-bubble p-2">
               {renderMessageContent(msg)}
             </div>
