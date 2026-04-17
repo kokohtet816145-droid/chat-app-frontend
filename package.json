@@ -1,21 +1,23 @@
+cd ~/chat-app/frontend
+cat > package.json << 'EOF'
 {
   "name": "frontend",
   "version": "0.1.0",
   "private": true,
+  "homepage": ".",
   "dependencies": {
-    "@supabase/supabase-js": "^2.103.2",
-    "@testing-library/dom": "^10.4.1",
-    "@testing-library/jest-dom": "^6.9.1",
-    "@testing-library/react": "^16.3.2",
+    "@supabase/supabase-js": "^2.68.1",
+    "@testing-library/jest-dom": "^5.17.0",
+    "@testing-library/react": "^13.4.0",
     "@testing-library/user-event": "^13.5.0",
+    "daisyui": "^4.12.24",
     "firebase": "^12.12.0",
-    "react": "^19.2.5",
-    "react-dom": "^19.2.5",
-    "react-icons": "^5.6.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-icons": "^5.5.0",
     "react-router-dom": "^7.14.1",
     "react-scripts": "5.0.1",
     "socket.io-client": "^4.8.3",
-    "vconsole": "^3.15.1",
     "web-vitals": "^2.1.4"
   },
   "scripts": {
@@ -26,8 +28,7 @@
   },
   "eslintConfig": {
     "extends": [
-      "react-app",
-      "react-app/jest"
+      "react-app"
     ]
   },
   "browserslist": {
@@ -41,11 +42,6 @@
       "last 1 firefox version",
       "last 1 safari version"
     ]
-  },
-  "devDependencies": {
-    "autoprefixer": "^10.5.0",
-    "daisyui": "^4.12.24",
-    "postcss": "^8.5.10",
-    "tailwindcss": "^3.4.19"
   }
 }
+EOF
