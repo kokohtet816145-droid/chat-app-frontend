@@ -4,7 +4,7 @@ import { useAuth } from '../lib/AuthContext';
 import { useSocket } from '../lib/SocketContext';
 import { supabase } from '../lib/supabaseClient';
 import { db } from '../firebase';
-import { collection, addDoc, query, orderBy, onSnapshot, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, query, where, orderBy, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { FaPaperPlane, FaMicrophone, FaImage, FaArrowLeft, FaStop } from 'react-icons/fa';
 
 function ChatBox() {
@@ -26,19 +26,28 @@ function ChatBox() {
 
   const isOnline = onlineUsers.some(u => u.userId === chatId);
 
-  // Fetch message history from Firestore
+  // Fetch message history from Firestore - FIXED QUERY
   useEffect(() => {
-    const q = query(collection(db, "messages"), orderBy("timestamp", "asc"));
+    if (!chatId) return;
+    
+    // Query messages WHERE chatId == current chatId
+    const q = query(
+      collection(db, "messages"),
+      where("chatId", "==", chatId),
+      orderBy("timestamp", "asc")
+    );
+    
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const msgs = [];
       snapshot.forEach((doc) => {
-        const data = doc.data();
-        if (data.chatId === chatId) {
-          msgs.push({ id: doc.id, ...data });
-        }
+        msgs.push({ id: doc.id, ...doc.data() });
       });
+      console.log('Messages loaded:', msgs.length, 'for chat:', chatId);
       setMessages(msgs);
+    }, (error) => {
+      console.error("Error fetching messages:", error);
     });
+    
     return () => unsubscribe();
   }, [chatId]);
 
