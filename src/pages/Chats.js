@@ -15,6 +15,7 @@ function Chats() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [isAdmin, setIsAdmin] = useState(false);
+  const [currentUserData, setCurrentUserData] = useState({});
   const navigate = useNavigate();
 
   const isUserOnline = (userId) => onlineUsers.some(u => u.userId === userId);
@@ -25,15 +26,21 @@ function Chats() {
       try {
         const usersSnap = await getDocs(collection(db, "users"));
         const all = [];
-        usersSnap.forEach(doc => { if (doc.id !== user.uid) all.push({ id: doc.id, ...doc.data() }); });
+        usersSnap.forEach(doc => { 
+          const data = doc.data();
+          if (doc.id === user.uid) {
+            setCurrentUserData(data);
+          } else {
+            all.push({ id: doc.id, ...data });
+          }
+        });
         const msgQuery = query(collection(db, "messages"), where("participants", "array-contains", user.uid));
         const msgSnap = await getDocs(msgQuery);
         const chattedIds = new Set();
         msgSnap.forEach(doc => doc.data().participants?.forEach(id => { if (id !== user.uid) chattedIds.add(id); }));
         const chatted = all.filter(u => chattedIds.has(u.id));
         setUsers(chatted);
-        const currentUser = all.find(u => u.id === user.uid) || { isAdmin: false };
-        setIsAdmin(currentUser.isAdmin || false);
+        setIsAdmin(currentUserData.isAdmin || false);
       } catch (err) {
         console.error(err);
       } finally {
@@ -62,7 +69,13 @@ function Chats() {
           <h2 className="text-xl font-bold">Chats ({users.length})</h2>
           <div className="flex gap-2">
             {isAdmin && <button className="btn btn-ghost btn-circle" onClick={() => navigate('/admin')}><FaUserShield className="text-warning" /></button>}
-            <Link to="/profile" className="btn btn-ghost btn-circle"><FaUserCircle /></Link>
+            <Link to="/profile" className="btn btn-ghost btn-circle">
+              {currentUserData.profilePic ? (
+                <img src={currentUserData.profilePic} alt="Profile" className="w-6 h-6 rounded-full object-cover" />
+              ) : (
+                <FaUserCircle />
+              )}
+            </Link>
             <button className="btn btn-ghost btn-circle" onClick={handleLogout}><FaSignOutAlt /></button>
           </div>
         </div>
@@ -74,7 +87,15 @@ function Chats() {
           {filtered.length === 0 ? <p className="text-center text-gray-500 p-4">No conversations</p> :
             filtered.map(u => (
               <div key={u.id} className="flex items-center p-3 hover:bg-gray-100 cursor-pointer border-b" onClick={() => navigate(`/chat/${u.id}`)}>
-                <div className="avatar placeholder mr-3"><div className="bg-neutral text-neutral-content rounded-full w-12"><span>{u.username?.charAt(0)}</span></div></div>
+                <div className="avatar mr-3">
+                  <div className="w-12 h-12 rounded-full bg-neutral text-neutral-content flex items-center justify-center overflow-hidden">
+                    {u.profilePic ? (
+                      <img src={u.profilePic} alt={u.username} className="w-full h-full object-cover" />
+                    ) : (
+                      <span>{u.username?.charAt(0)}</span>
+                    )}
+                  </div>
+                </div>
                 <div className="flex-1">
                   <div className="flex justify-between"><span className="font-semibold">{u.username}</span>{u.isAdmin && <span className="badge badge-primary badge-sm">Admin</span>}</div>
                   <p className="text-sm text-gray-500">{isUserOnline(u.id) ? <span className="text-green-500">● Online</span> : <span className="text-gray-400">○ Offline</span>}</p>

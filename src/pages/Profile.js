@@ -1,17 +1,21 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/AuthContext';
 import { db } from '../firebase';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
-import { FaArrowLeft, FaSave, FaUserCircle } from 'react-icons/fa';
+import { supabase } from '../lib/supabaseClient';
+import { FaArrowLeft, FaSave, FaUserCircle, FaCamera } from 'react-icons/fa';
 
 function Profile() {
   const { user } = useAuth();
   const [username, setUsername] = useState('');
   const [bio, setBio] = useState('');
+  const [profilePic, setProfilePic] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const navigate = useNavigate();
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -23,6 +27,7 @@ function Profile() {
           const data = docSnap.data();
           setUsername(data.username || '');
           setBio(data.bio || '');
+          setProfilePic(data.profilePic || '');
         }
       } catch (error) {
         console.error("Error fetching profile:", error);
@@ -32,6 +37,35 @@ function Profile() {
     };
     fetchProfile();
   }, [user]);
+
+  const handleProfilePicUpload = async (file) => {
+    if (!file) return;
+    setUploading(true);
+    try {
+      const fileName = `profile_${user.uid}_${Date.now()}`;
+      const { data, error } = await supabase.storage
+        .from('chat-images')
+        .upload(fileName, file, { upsert: true });
+
+      if (error) throw error;
+
+      const { data: urlData } = supabase.storage
+        .from('chat-images')
+        .getPublicUrl(data.path);
+      
+      const publicUrl = urlData.publicUrl;
+      setProfilePic(publicUrl);
+      
+      // Auto-save to Firestore
+      const docRef = doc(db, "users", user.uid);
+      await updateDoc(docRef, { profilePic: publicUrl });
+      alert('Profile picture updated!');
+    } catch (error) {
+      alert('Upload failed: ' + error.message);
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const handleSave = async () => {
     if (!user) return;
@@ -66,11 +100,36 @@ function Profile() {
         </div>
 
         <div className="backdrop-blur-lg bg-white/10 rounded-3xl shadow-2xl p-8 border border-white/20">
+          {/* Profile Picture */}
           <div className="flex justify-center mb-6">
-            <div className="relative w-24 h-24 rounded-full overflow-hidden border-4 border-white/30 shadow-lg bg-white/20 flex items-center justify-center">
-              <FaUserCircle className="text-white text-6xl" />
+            <div className="relative">
+              <div className="relative w-24 h-24 rounded-full overflow-hidden border-4 border-white/30 shadow-lg bg-white/20 flex items-center justify-center">
+                {profilePic ? (
+                  <img src={profilePic} alt="Profile" className="w-full h-full object-cover" />
+                ) : (
+                  <FaUserCircle className="text-white text-6xl" />
+                )}
+              </div>
+              <button
+                className="absolute bottom-0 right-0 btn btn-circle btn-sm btn-primary"
+                onClick={() => fileInputRef.current.click()}
+                disabled={uploading}
+              >
+                <FaCamera />
+              </button>
+              <input
+                type="file"
+                accept="image/*"
+                ref={fileInputRef}
+                onChange={(e) => {
+                  handleProfilePicUpload(e.target.files[0]);
+                  e.target.value = '';
+                }}
+                style={{ display: 'none' }}
+              />
             </div>
           </div>
+          {uploading && <p className="text-center text-white/70 text-sm mb-4">Uploading...</p>}
 
           <div className="space-y-4">
             <div>
