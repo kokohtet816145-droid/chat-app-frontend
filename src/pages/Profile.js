@@ -17,7 +17,6 @@ function Profile() {
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
 
-  // Load profile data on mount
   useEffect(() => {
     const fetchProfile = async () => {
       if (!user) return;
@@ -41,50 +40,31 @@ function Profile() {
 
   const handleProfilePicUpload = async (file) => {
     if (!file) return;
-    
-    // Check file size (max 5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      alert('File size must be less than 5MB');
-      return;
-    }
-    
-    // Check file type
-    if (!file.type.startsWith('image/')) {
-      alert('Only image files are allowed');
-      return;
-    }
+    if (file.size > 5 * 1024 * 1024) { alert('File size must be less than 5MB'); return; }
+    if (!file.type.startsWith('image/')) { alert('Only image files are allowed'); return; }
     
     setUploading(true);
     try {
       const fileExt = file.name.split('.').pop();
       const fileName = `${user.uid}_${Date.now()}.${fileExt}`;
       
-      // Upload to Supabase Storage
       const { data, error } = await supabase.storage
         .from('chat-images')
-        .upload(fileName, file, {
-          cacheControl: '3600',
-          upsert: false
-        });
+        .upload(fileName, file, { upsert: true });
 
-      if (error) {
-        console.error('Supabase error:', error);
-        throw new Error(error.message);
-      }
+      if (error) throw error;
 
-      // Get public URL
       const { data: urlData } = supabase.storage
         .from('chat-images')
         .getPublicUrl(data.path);
       
       const publicUrl = urlData.publicUrl;
-      
-      // Update state and Firestore
       setProfilePic(publicUrl);
+      
       const docRef = doc(db, "users", user.uid);
       await updateDoc(docRef, { profilePic: publicUrl });
       
-      alert('Profile picture updated successfully!');
+      alert('Profile picture updated!');
     } catch (error) {
       console.error('Upload error:', error);
       alert('Upload failed: ' + error.message);
@@ -99,7 +79,7 @@ function Profile() {
     try {
       const docRef = doc(db, "users", user.uid);
       await updateDoc(docRef, { username, bio });
-      alert('Profile updated successfully!');
+      alert('Profile updated!');
     } catch (error) {
       alert('Error: ' + error.message);
     } finally {
@@ -107,96 +87,31 @@ function Profile() {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex h-screen items-center justify-center">
-        <span className="loading loading-spinner loading-lg"></span>
-      </div>
-    );
-  }
+  if (loading) return <div className="flex h-screen items-center justify-center"><span className="loading loading-spinner loading-lg"></span></div>;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-900 via-indigo-800 to-blue-900 p-4">
       <div className="max-w-md mx-auto">
         <div className="flex items-center gap-4 mb-6">
-          <button className="btn btn-ghost btn-circle text-white" onClick={() => navigate('/chats')}>
-            <FaArrowLeft />
-          </button>
+          <button className="btn btn-ghost btn-circle text-white" onClick={() => navigate('/chats')}><FaArrowLeft /></button>
           <h1 className="text-2xl font-bold text-white">Profile</h1>
         </div>
-
         <div className="backdrop-blur-lg bg-white/10 rounded-3xl shadow-2xl p-8 border border-white/20">
-          {/* Profile Picture */}
           <div className="flex justify-center mb-6">
             <div className="relative">
-              <div className="relative w-24 h-24 rounded-full overflow-hidden border-4 border-white/30 shadow-lg bg-white/20 flex items-center justify-center">
-                {profilePic ? (
-                  <img src={profilePic} alt="Profile" className="w-full h-full object-cover" />
-                ) : (
-                  <FaUserCircle className="text-white text-6xl" />
-                )}
+              <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-white/30 bg-white/20 flex items-center justify-center">
+                {profilePic ? <img src={profilePic} alt="Profile" className="w-full h-full object-cover" /> : <FaUserCircle className="text-white text-6xl" />}
               </div>
-              <button
-                className="absolute bottom-0 right-0 btn btn-circle btn-sm btn-primary"
-                onClick={() => fileInputRef.current.click()}
-                disabled={uploading}
-              >
-                <FaCamera />
-              </button>
-              <input
-                type="file"
-                accept="image/*"
-                ref={fileInputRef}
-                onChange={(e) => {
-                  if (e.target.files && e.target.files[0]) {
-                    handleProfilePicUpload(e.target.files[0]);
-                  }
-                  e.target.value = '';
-                }}
-                style={{ display: 'none' }}
-              />
+              <button className="absolute bottom-0 right-0 btn btn-circle btn-sm btn-primary" onClick={() => fileInputRef.current.click()} disabled={uploading}><FaCamera /></button>
+              <input type="file" accept="image/*" ref={fileInputRef} onChange={(e) => { if (e.target.files[0]) handleProfilePicUpload(e.target.files[0]); e.target.value = ''; }} style={{ display: 'none' }} />
             </div>
           </div>
-          {uploading && <p className="text-center text-white/70 text-sm mb-4">Uploading...</p>}
-
+          {uploading && <p className="text-center text-white/70 mb-4">Uploading...</p>}
           <div className="space-y-4">
-            <div>
-              <label className="label text-white/70">Email</label>
-              <input
-                type="email"
-                className="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-xl text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-purple-400"
-                value={user?.email || ''}
-                disabled
-              />
-            </div>
-            <div>
-              <label className="label text-white/70">Username</label>
-              <input
-                type="text"
-                className="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-xl text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-purple-400"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                placeholder="Enter username"
-              />
-            </div>
-            <div>
-              <label className="label text-white/70">Bio</label>
-              <textarea
-                className="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-xl text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-purple-400 resize-none"
-                rows="3"
-                value={bio}
-                onChange={(e) => setBio(e.target.value)}
-                placeholder="Tell us about yourself..."
-              />
-            </div>
-            <button
-              className={`w-full py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition duration-200 ${saving ? 'opacity-50 cursor-not-allowed' : ''}`}
-              onClick={handleSave}
-              disabled={saving}
-            >
-              <FaSave className="inline mr-2" />
-              {saving ? 'Saving...' : 'Save Changes'}
-            </button>
+            <div><label className="label text-white/70">Email</label><input type="email" className="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-xl text-white" value={user?.email || ''} disabled /></div>
+            <div><label className="label text-white/70">Username</label><input type="text" className="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-xl text-white" value={username} onChange={(e) => setUsername(e.target.value)} /></div>
+            <div><label className="label text-white/70">Bio</label><textarea className="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-xl text-white resize-none" rows="3" value={bio} onChange={(e) => setBio(e.target.value)} /></div>
+            <button className={`w-full py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-semibold rounded-xl ${saving ? 'opacity-50' : ''}`} onClick={handleSave} disabled={saving}><FaSave className="inline mr-2" />{saving ? 'Saving...' : 'Save Changes'}</button>
           </div>
         </div>
       </div>
