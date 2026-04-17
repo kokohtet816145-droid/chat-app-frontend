@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { auth, db } from '../firebase';
+import { auth } from '../firebase';
 import { 
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword 
 } from 'firebase/auth';
+import { db } from '../firebase';
 import { doc, setDoc } from 'firebase/firestore';
 
 function Login() {
@@ -19,15 +20,12 @@ function Login() {
     setLoading(true);
     try {
       if (isLogin) {
-        // Login
         await signInWithEmailAndPassword(auth, email, password);
         navigate('/chats');
       } else {
-        // Register
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         const user = userCredential.user;
         
-        // Firestore ထဲမှာ User Document ဖန်တီးပါ
         await setDoc(doc(db, "users", user.uid), {
           uid: user.uid,
           email: user.email,
