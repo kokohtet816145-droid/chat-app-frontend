@@ -13,16 +13,12 @@ function StoryUpload() {
     setUploading(true);
     try {
       const fileName = `story_${user.uid}_${Date.now()}`;
-      const { data, error } = await supabase.storage
+      const { error } = await supabase.storage
         .from('chat-images')
         .upload(fileName, file);
 
       if (error) throw error;
 
-      const { data: urlData } = supabase.storage
-        .from('chat-images')
-        .getPublicUrl(data.path);
-      
       // TODO: Save story URL to Firestore with expiration
       alert('Story uploaded successfully! (Will expire in 24h)');
     } catch (error) {
