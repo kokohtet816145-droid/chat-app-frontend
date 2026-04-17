@@ -1,57 +1,29 @@
-.login-container {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  min-height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-}
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-.login-card {
-  background: white;
-  padding: 40px;
-  border-radius: 20px;
-  box-shadow: 0 10px 25px rgba(0,0,0,0.1);
-  text-align: center;
-  width: 90%;
-  max-width: 400px;
-}
-
-.Myanmar-placeholder {
-  margin-bottom: 20px;
-}
-
-.Myanmar{
-  width: 200px;
-  height: 200px;
-  object-fit: cover;
-  border-radius: 50%;
-  border: 3px solid #764ba2;
-}
-
-.login-card h2 {
-  margin-bottom: 20px;
-  color: #333;
-}
-
-.login-card input {
-  width: 100%;
-  padding: 12px;
-  margin: 10px 0;
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  font-size: 16px;
-  box-sizing: border-box;
-}
-
-.login-card button {
-  width: 100%;
-  padding: 12px;
-  background: #764ba2;
-  color: white;
-  border: none;
-  border-radius: 8px;
-  font-size: 16px;
-  font-weight: bold;
-  cursor: pointer;
-  margin-top: 10px;
+@layer utilities {
+  @keyframes blob {
+    0% {
+      transform: translate(0px, 0px) scale(1);
+    }
+    33% {
+      transform: translate(30px, -50px) scale(1.1);
+    }
+    66% {
+      transform: translate(-20px, 20px) scale(0.9);
+    }
+    100% {
+      transform: translate(0px, 0px) scale(1);
+    }
+  }
+  .animate-blob {
+    animation: blob 7s infinite;
+  }
+  .animation-delay-2000 {
+    animation-delay: 2s;
+  }
+  .animation-delay-4000 {
+    animation-delay: 4s;
+  }
 }
