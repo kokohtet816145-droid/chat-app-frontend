@@ -3,6 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/AuthContext';
 import { useSocket } from '../lib/SocketContext';
 import { supabase } from '../lib/supabaseClient';
+import { db } from '../firebase';
+import { collection, addDoc, query, where, orderBy, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { FaPaperPlane, FaMicrophone, FaImage, FaArrowLeft, FaStop } from 'react-icons/fa';
 
 function ChatBox() {
@@ -24,32 +26,45 @@ function ChatBox() {
 
   const isOnline = onlineUsers.some(u => u.userId === chatId);
 
-  // Load message history from Local Storage
-  useEffect(() => {
-    const storageKey = `chat_messages_${chatId}`;
-    const savedMessages = localStorage.getItem(storageKey);
-    if (savedMessages) {
-      try {
-        setMessages(JSON.parse(savedMessages));
-      } catch (error) {
-        console.error("Error loading messages:", error);
-      }
-    }
-  }, [chatId]);
+  const getChatRoomId = (uid1, uid2) => {
+    return uid1 < uid2 ? `${uid1}_${uid2}` : `${uid2}_${uid1}`;
+  };
+  const chatRoomId = getChatRoomId(user?.uid, chatId);
+  const participants = [user?.uid, chatId];
 
-  // Save messages to Local Storage whenever they change
   useEffect(() => {
-    if (messages.length > 0) {
-      const storageKey = `chat_messages_${chatId}`;
-      localStorage.setItem(storageKey, JSON.stringify(messages));
-    }
-  }, [messages, chatId]);
+    if (!chatRoomId) return;
+    
+    const q = query(
+      collection(db, "messages"),
+      where("chatRoomId", "==", chatRoomId),
+      orderBy("timestamp", "asc")
+    );
+    
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const msgs = [];
+      snapshot.forEach((doc) => {
+        msgs.push({ id: doc.id, ...doc.data() });
+      });
+      setMessages(msgs);
+    });
+    
+    return () => unsubscribe();
+  }, [chatRoomId]);
 
   useEffect(() => {
     if (socket) {
-      socket.emit('join chat', chatId);
+      socket.emit('join chat', chatRoomId);
       socket.on('message received', (msg) => {
-        setMessages(prev => [...prev, { ...msg, timestamp: new Date().toISOString() }]);
+        addDoc(collection(db, "messages"), {
+          chatRoomId: chatRoomId,
+          participants: participants,
+          senderId: msg.sender._id,
+          content: msg.content || '',
+          messageType: msg.messageType || 'text',
+          fileUrl: msg.fileUrl || '',
+          timestamp: serverTimestamp()
+        });
       });
       socket.on('typing', () => setTyping(true));
       socket.on('stop typing', () => setTyping(false));
@@ -61,64 +76,56 @@ function ChatBox() {
         socket.off('stop typing');
       }
     };
-  }, [socket, chatId]);
+  }, [socket, chatRoomId, participants]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const sendMessage = (e) => {
+  const sendMessage = async (e) => {
     e.preventDefault();
     if (!newMessage.trim()) return;
     const msg = {
       sender: { _id: user.uid, username: user.email },
       content: newMessage,
-      chat: { _id: chatId, users: [{ _id: chatId }] },
+      chat: { _id: chatRoomId, users: [{ _id: chatId }] },
       messageType: 'text',
-      timestamp: new Date().toISOString(),
     };
     socket.emit('new message', msg);
-    setMessages(prev => [...prev, { ...msg, sender: { ...msg.sender, _id: user.uid } }]);
+    setMessages(prev => [...prev, { ...msg, sender: { ...msg.sender, _id: user.uid }, timestamp: new Date() }]);
     setNewMessage('');
-    socket.emit('stop typing', chatId);
+    socket.emit('stop typing', chatRoomId);
     setIsTyping(false);
   };
 
   const handleTyping = (e) => {
     setNewMessage(e.target.value);
     if (!isTyping) {
-      socket.emit('typing', chatId);
+      socket.emit('typing', chatRoomId);
       setIsTyping(true);
     }
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     typingTimeoutRef.current = setTimeout(() => {
-      socket.emit('stop typing', chatId);
+      socket.emit('stop typing', chatRoomId);
       setIsTyping(false);
     }, 1000);
   };
 
-  // Voice Recording Logic
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       mediaRecorderRef.current = new MediaRecorder(stream);
       audioChunksRef.current = [];
-
-      mediaRecorderRef.current.ondataavailable = (e) => {
-        audioChunksRef.current.push(e.data);
-      };
-
+      mediaRecorderRef.current.ondataavailable = (e) => audioChunksRef.current.push(e.data);
       mediaRecorderRef.current.onstop = async () => {
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
         await uploadVoiceMessage(audioBlob);
         stream.getTracks().forEach(track => track.stop());
       };
-
       mediaRecorderRef.current.start();
       setIsRecording(true);
     } catch (error) {
-      alert('Microphone access denied or not available');
-      console.error(error);
+      alert('Microphone access denied');
     }
   };
 
@@ -133,32 +140,20 @@ function ChatBox() {
     setUploading(true);
     try {
       const fileName = `voice_${Date.now()}.webm`;
-      const { data, error } = await supabase.storage
-        .from('chat-images')
-        .upload(fileName, audioBlob, { contentType: 'audio/webm' });
-
-      if (error) {
-        alert('Voice upload error: ' + error.message);
-        return;
-      }
-
-      const { data: urlData } = supabase.storage
-        .from('chat-images')
-        .getPublicUrl(data.path);
-      const publicUrl = urlData.publicUrl;
-
+      const { data, error } = await supabase.storage.from('chat-images').upload(fileName, audioBlob, { contentType: 'audio/webm' });
+      if (error) throw error;
+      const { data: urlData } = supabase.storage.from('chat-images').getPublicUrl(data.path);
       const msg = {
         sender: { _id: user.uid, username: user.email },
         content: '',
-        chat: { _id: chatId, users: [{ _id: chatId }] },
+        chat: { _id: chatRoomId, users: [{ _id: chatId }] },
         messageType: 'voice',
-        fileUrl: publicUrl,
-        timestamp: new Date().toISOString(),
+        fileUrl: urlData.publicUrl,
       };
       socket.emit('new message', msg);
-      setMessages(prev => [...prev, { ...msg, sender: { ...msg.sender, _id: user.uid } }]);
+      setMessages(prev => [...prev, { ...msg, sender: { ...msg.sender, _id: user.uid }, timestamp: new Date() }]);
     } catch (error) {
-      alert('Unexpected Error: ' + error.message);
+      alert('Voice upload error: ' + error.message);
     } finally {
       setUploading(false);
     }
@@ -169,32 +164,20 @@ function ChatBox() {
     setUploading(true);
     try {
       const fileName = `${Date.now()}_${file.name}`;
-      const { data, error } = await supabase.storage
-        .from('chat-images')
-        .upload(fileName, file);
-
-      if (error) {
-        alert('Upload Error: ' + error.message);
-        return;
-      }
-
-      const { data: urlData } = supabase.storage
-        .from('chat-images')
-        .getPublicUrl(data.path);
-      const publicUrl = urlData.publicUrl;
-
+      const { data, error } = await supabase.storage.from('chat-images').upload(fileName, file);
+      if (error) throw error;
+      const { data: urlData } = supabase.storage.from('chat-images').getPublicUrl(data.path);
       const msg = {
         sender: { _id: user.uid, username: user.email },
         content: '',
-        chat: { _id: chatId, users: [{ _id: chatId }] },
+        chat: { _id: chatRoomId, users: [{ _id: chatId }] },
         messageType: 'image',
-        fileUrl: publicUrl,
-        timestamp: new Date().toISOString(),
+        fileUrl: urlData.publicUrl,
       };
       socket.emit('new message', msg);
-      setMessages(prev => [...prev, { ...msg, sender: { ...msg.sender, _id: user.uid } }]);
+      setMessages(prev => [...prev, { ...msg, sender: { ...msg.sender, _id: user.uid }, timestamp: new Date() }]);
     } catch (error) {
-      alert('Unexpected Error: ' + error.message);
+      alert('Image upload error: ' + error.message);
     } finally {
       setUploading(false);
     }
@@ -202,23 +185,13 @@ function ChatBox() {
 
   const onFileChange = (e) => {
     const file = e.target.files[0];
-    if (file) {
-      handleImageUpload(file);
-    }
+    if (file) handleImageUpload(file);
     e.target.value = '';
   };
 
   const renderMessageContent = (msg) => {
-    if (msg.messageType === 'image') {
-      return <img src={msg.fileUrl} alt="Shared content" className="max-w-xs rounded-lg" />;
-    } else if (msg.messageType === 'voice') {
-      return (
-        <audio controls className="max-w-xs">
-          <source src={msg.fileUrl} type="audio/webm" />
-          Your browser does not support the audio element.
-        </audio>
-      );
-    }
+    if (msg.messageType === 'image') return <img src={msg.fileUrl} alt="Shared" className="max-w-xs rounded-lg" />;
+    if (msg.messageType === 'voice') return <audio controls className="max-w-xs"><source src={msg.fileUrl} type="audio/webm" /></audio>;
     return msg.content;
   };
 
@@ -229,78 +202,33 @@ function ChatBox() {
           <FaArrowLeft />
         </button>
         <div className="avatar placeholder">
-          <div className="bg-neutral text-neutral-content rounded-full w-10">
-            <span>U</span>
-          </div>
+          <div className="bg-neutral text-neutral-content rounded-full w-10"><span>U</span></div>
         </div>
         <div>
           <h3 className="font-bold">User {chatId}</h3>
-          <p className="text-sm text-gray-500">
-            {isOnline ? (
-              <span className="text-green-500">● Online</span>
-            ) : (
-              <span className="text-gray-400">○ Offline</span>
-            )}
-          </p>
+          <p className="text-sm text-gray-500">{isOnline ? <span className="text-green-500">● Online</span> : <span className="text-gray-400">○ Offline</span>}</p>
         </div>
       </div>
-
       <div className="flex-1 overflow-y-auto p-4">
         {messages.map((msg, i) => (
-          <div key={msg.id || i} className={`chat ${msg.sender._id === user.uid ? 'chat-end' : 'chat-start'}`}>
-            <div className="chat-bubble p-2">
-              {renderMessageContent(msg)}
-            </div>
+          <div key={msg.id || i} className={`chat ${msg.senderId === user.uid || msg.sender?._id === user.uid ? 'chat-end' : 'chat-start'}`}>
+            <div className="chat-bubble p-2">{renderMessageContent(msg)}</div>
           </div>
         ))}
-        {typing && (
-          <div className="chat chat-start">
-            <div className="chat-bubble italic text-gray-500">Typing...</div>
-          </div>
-        )}
+        {typing && <div className="chat chat-start"><div className="chat-bubble italic">Typing...</div></div>}
         <div ref={messagesEndRef} />
       </div>
-
       <form onSubmit={sendMessage} className="bg-white p-4 flex items-center gap-2">
-        <input
-          type="file"
-          accept="image/*"
-          ref={fileInputRef}
-          onChange={onFileChange}
-          style={{ display: 'none' }}
-        />
-        <button
-          type="button"
-          className="btn btn-ghost btn-circle"
-          onClick={() => fileInputRef.current.click()}
-          disabled={uploading}
-        >
+        <input type="file" accept="image/*" ref={fileInputRef} onChange={onFileChange} style={{ display: 'none' }} />
+        <button type="button" className="btn btn-ghost btn-circle" onClick={() => fileInputRef.current.click()} disabled={uploading}>
           <FaImage className={uploading ? 'animate-pulse' : ''} />
         </button>
-        <button
-          type="button"
-          className={`btn btn-ghost btn-circle ${isRecording ? 'text-red-500' : ''}`}
-          onTouchStart={(e) => { e.preventDefault(); startRecording(); }}
-          onTouchEnd={(e) => { e.preventDefault(); stopRecording(); }}
-          onTouchCancel={(e) => { e.preventDefault(); stopRecording(); }}
-          onMouseDown={(e) => { e.preventDefault(); startRecording(); }}
-          onMouseUp={(e) => { e.preventDefault(); stopRecording(); }}
-          onMouseLeave={(e) => { e.preventDefault(); if (isRecording) stopRecording(); }}
-          disabled={uploading}
-        >
+        <button type="button" className={`btn btn-ghost btn-circle ${isRecording ? 'text-red-500' : ''}`}
+          onTouchStart={startRecording} onTouchEnd={stopRecording} onMouseDown={startRecording} onMouseUp={stopRecording} disabled={uploading}>
           {isRecording ? <FaStop /> : <FaMicrophone />}
         </button>
-        <input
-          type="text"
-          className="input input-bordered flex-1"
-          value={newMessage}
-          onChange={handleTyping}
-          placeholder={uploading ? "ပို့နေသည်..." : "စာရိုက်ပါ..."}
-          disabled={uploading}
-        />
-        <button type="submit" className="btn btn-primary btn-circle" disabled={uploading}>
-          <FaPaperPlane />
-        </button>
+        <input type="text" className="input input-bordered flex-1" value={newMessage} onChange={handleTyping} placeholder={uploading ? "Sending..." : "Type a message..."} disabled={uploading} />
+        <button type="submit" className="btn btn-primary btn-circle" disabled={uploading}><FaPaperPlane /></button>
       </form>
     </div>
   );
