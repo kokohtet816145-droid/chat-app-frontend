@@ -6,6 +6,7 @@ import Login from './pages/Login';
 import Chats from './pages/Chats';
 import ChatBox from './pages/ChatBox';
 import AdminPanel from './pages/AdminPanel';
+import Profile from './pages/Profile';
 import './App.css';
 
 function ProtectedRoute({ children }) {
@@ -22,6 +23,7 @@ function App() {
           <Route path="/chats" element={<ProtectedRoute><Chats /></ProtectedRoute>} />
           <Route path="/chat/:chatId" element={<ProtectedRoute><ChatBox /></ProtectedRoute>} />
           <Route path="/admin" element={<ProtectedRoute><AdminPanel /></ProtectedRoute>} />
+          <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
           <Route path="/" element={<Navigate to="/login" />} />
         </Routes>
       </SocketProvider>
