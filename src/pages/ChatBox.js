@@ -3,6 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/AuthContext';
 import { useSocket } from '../lib/SocketContext';
 import { supabase } from '../lib/supabaseClient';
+import { db } from '../firebase';
+import { collection, addDoc, query, orderBy, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { FaPaperPlane, FaMicrophone, FaImage, FaArrowLeft, FaStop } from 'react-icons/fa';
 
 function ChatBox() {
@@ -24,11 +26,35 @@ function ChatBox() {
 
   const isOnline = onlineUsers.some(u => u.userId === chatId);
 
+  // Fetch message history from Firestore
+  useEffect(() => {
+    const q = query(collection(db, "messages"), orderBy("timestamp", "asc"));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const msgs = [];
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        if (data.chatId === chatId) {
+          msgs.push({ id: doc.id, ...data });
+        }
+      });
+      setMessages(msgs);
+    });
+    return () => unsubscribe();
+  }, [chatId]);
+
   useEffect(() => {
     if (socket) {
       socket.emit('join chat', chatId);
       socket.on('message received', (msg) => {
-        setMessages(prev => [...prev, msg]);
+        // Message ကို Firestore မှာ သိမ်းပါ
+        addDoc(collection(db, "messages"), {
+          chatId: chatId,
+          senderId: msg.sender._id,
+          content: msg.content || '',
+          messageType: msg.messageType || 'text',
+          fileUrl: msg.fileUrl || '',
+          timestamp: serverTimestamp()
+        });
       });
       socket.on('typing', () => setTyping(true));
       socket.on('stop typing', () => setTyping(false));
@@ -46,7 +72,7 @@ function ChatBox() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const sendMessage = (e) => {
+  const sendMessage = async (e) => {
     e.preventDefault();
     if (!newMessage.trim()) return;
     const msg = {
@@ -56,7 +82,9 @@ function ChatBox() {
       messageType: 'text',
     };
     socket.emit('new message', msg);
-    setMessages(prev => [...prev, { ...msg, sender: { ...msg.sender, _id: user.uid } }]);
+    
+    // Optimistic UI update
+    setMessages(prev => [...prev, { ...msg, sender: { ...msg.sender, _id: user.uid }, timestamp: new Date() }]);
     setNewMessage('');
     socket.emit('stop typing', chatId);
     setIsTyping(false);
@@ -133,7 +161,7 @@ function ChatBox() {
         fileUrl: publicUrl,
       };
       socket.emit('new message', msg);
-      setMessages(prev => [...prev, { ...msg, sender: { ...msg.sender, _id: user.uid } }]);
+      setMessages(prev => [...prev, { ...msg, sender: { ...msg.sender, _id: user.uid }, timestamp: new Date() }]);
     } catch (error) {
       alert('Unexpected Error: ' + error.message);
     } finally {
@@ -168,7 +196,7 @@ function ChatBox() {
         fileUrl: publicUrl,
       };
       socket.emit('new message', msg);
-      setMessages(prev => [...prev, { ...msg, sender: { ...msg.sender, _id: user.uid } }]);
+      setMessages(prev => [...prev, { ...msg, sender: { ...msg.sender, _id: user.uid }, timestamp: new Date() }]);
     } catch (error) {
       alert('Unexpected Error: ' + error.message);
     } finally {
@@ -223,7 +251,7 @@ function ChatBox() {
 
       <div className="flex-1 overflow-y-auto p-4">
         {messages.map((msg, i) => (
-          <div key={i} className={`chat ${msg.sender._id === user.uid ? 'chat-end' : 'chat-start'}`}>
+          <div key={msg.id || i} className={`chat ${msg.senderId === user.uid || msg.sender?._id === user.uid ? 'chat-end' : 'chat-start'}`}>
             <div className="chat-bubble p-2">
               {renderMessageContent(msg)}
             </div>
