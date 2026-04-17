@@ -1,5 +1,3 @@
-cd ~/chat-app/frontend
-cat > package.json << 'EOF'
 {
   "name": "frontend",
   "version": "0.1.0",
@@ -7,9 +5,6 @@ cat > package.json << 'EOF'
   "homepage": ".",
   "dependencies": {
     "@supabase/supabase-js": "^2.68.1",
-    "@testing-library/jest-dom": "^5.17.0",
-    "@testing-library/react": "^13.4.0",
-    "@testing-library/user-event": "^13.5.0",
     "daisyui": "^4.12.24",
     "firebase": "^12.12.0",
     "react": "^18.3.1",
@@ -17,8 +12,7 @@ cat > package.json << 'EOF'
     "react-icons": "^5.5.0",
     "react-router-dom": "^7.14.1",
     "react-scripts": "5.0.1",
-    "socket.io-client": "^4.8.3",
-    "web-vitals": "^2.1.4"
+    "socket.io-client": "^4.8.3"
   },
   "scripts": {
     "start": "react-scripts start",
@@ -44,4 +38,3 @@ cat > package.json << 'EOF'
     ]
   }
 }
-EOF
