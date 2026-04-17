@@ -1,15 +1,50 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { auth, db } from './firebase';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
+import { doc, setDoc } from 'firebase/firestore';
 import './App.css';
 
 function App() {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    alert(`${isLogin ? 'Login' : 'Register'} with: ${email}`);
-    // TODO: Add Firebase Auth Logic later
+    setLoading(true);
+    try {
+      if (isLogin) {
+        // Login
+        await signInWithEmailAndPassword(auth, email, password);
+        navigate('/chats');
+      } else {
+        // Register
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        const user = userCredential.user;
+        
+        // Firestore ထဲမှာ User Document ဖန်တီးပါ
+        await setDoc(doc(db, "users", user.uid), {
+          uid: user.uid,
+          email: user.email,
+          username: email.split('@')[0],
+          isAdmin: false,
+          createdAt: new Date().toISOString(),
+          profilePic: "",
+          bio: "",
+          blocked: false
+        });
+        
+        alert('အကောင့်သစ် ဖန်တီးပြီးပါပြီ။ ဆက်လက်၍ Login ဝင်ပါ။');
+        setIsLogin(true);
+      }
+    } catch (error) {
+      alert('Error: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -22,7 +57,7 @@ function App() {
       <div className="relative z-10 w-full max-w-md">
         {/* Glassmorphism Card */}
         <div className="backdrop-blur-lg bg-white/10 rounded-3xl shadow-2xl p-8 border border-white/20">
-          {/* Anime Girl Placeholder (You can replace this URL with your preferred GIF) */}
+          {/* Anime Girl Placeholder */}
           <div className="flex justify-center mb-6">
             <div className="relative w-32 h-32 rounded-full overflow-hidden border-4 border-white/30 shadow-lg">
               <img 
@@ -49,6 +84,7 @@ function App() {
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-xl text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-purple-400 backdrop-blur-sm transition duration-200"
                 required
+                disabled={loading}
               />
             </div>
             <div>
@@ -59,20 +95,23 @@ function App() {
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-xl text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-purple-400 backdrop-blur-sm transition duration-200"
                 required
+                disabled={loading}
               />
             </div>
             <button
               type="submit"
-              className="w-full py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition duration-200"
+              disabled={loading}
+              className="w-full py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {isLogin ? 'Sign In' : 'Sign Up'}
+              {loading ? 'Loading...' : (isLogin ? 'Sign In' : 'Sign Up')}
             </button>
           </form>
 
           <div className="mt-6 text-center">
             <button
               onClick={() => setIsLogin(!isLogin)}
-              className="text-white/80 hover:text-white text-sm font-medium transition duration-200"
+              disabled={loading}
+              className="text-white/80 hover:text-white text-sm font-medium transition duration-200 disabled:opacity-50"
             >
               {isLogin ? "Don't have an account? Sign Up" : 'Already have an account? Sign In'}
             </button>
