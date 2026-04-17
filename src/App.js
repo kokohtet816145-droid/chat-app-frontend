@@ -17,15 +17,12 @@ function App() {
     setLoading(true);
     try {
       if (isLogin) {
-        // Login
         await signInWithEmailAndPassword(auth, email, password);
         navigate('/chats');
       } else {
-        // Register
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         const user = userCredential.user;
         
-        // Firestore ထဲမှာ User Document ဖန်တီးပါ
         await setDoc(doc(db, "users", user.uid), {
           uid: user.uid,
           email: user.email,
