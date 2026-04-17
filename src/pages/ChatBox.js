@@ -3,7 +3,9 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/AuthContext';
 import { useSocket } from '../lib/SocketContext';
 import { supabase } from '../lib/supabaseClient';
-import { FaPaperPlane, FaMicrophone, FaImage, FaArrowLeft } from 'react-icons/fa';
+import { db } from '../firebase';
+import { collection, addDoc, query, orderBy, onSnapshot, serverTimestamp } from 'firebase/firestore';
+import { FaPaperPlane, FaMicrophone, FaImage, FaArrowLeft, FaStop } from 'react-icons/fa';
 
 function ChatBox() {
   const { chatId } = useParams();
@@ -19,14 +21,39 @@ function ChatBox() {
   const messagesEndRef = useRef(null);
   const typingTimeoutRef = useRef(null);
   const fileInputRef = useRef(null);
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
 
   const isOnline = onlineUsers.some(u => u.userId === chatId);
+
+  // Fetch message history from Firestore
+  useEffect(() => {
+    const q = query(collection(db, "messages"), orderBy("timestamp", "asc"));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const msgs = [];
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        if (data.chatId === chatId) {
+          msgs.push({ id: doc.id, ...data });
+        }
+      });
+      setMessages(msgs);
+    });
+    return () => unsubscribe();
+  }, [chatId]);
 
   useEffect(() => {
     if (socket) {
       socket.emit('join chat', chatId);
       socket.on('message received', (msg) => {
-        setMessages(prev => [...prev, msg]);
+        addDoc(collection(db, "messages"), {
+          chatId: chatId,
+          senderId: msg.sender._id,
+          content: msg.content || '',
+          messageType: msg.messageType || 'text',
+          fileUrl: msg.fileUrl || '',
+          timestamp: serverTimestamp()
+        });
       });
       socket.on('typing', () => setTyping(true));
       socket.on('stop typing', () => setTyping(false));
@@ -44,7 +71,7 @@ function ChatBox() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const sendMessage = (e) => {
+  const sendMessage = async (e) => {
     e.preventDefault();
     if (!newMessage.trim()) return;
     const msg = {
@@ -54,7 +81,7 @@ function ChatBox() {
       messageType: 'text',
     };
     socket.emit('new message', msg);
-    setMessages(prev => [...prev, { ...msg, sender: { ...msg.sender, _id: user.uid } }]);
+    setMessages(prev => [...prev, { ...msg, sender: { ...msg.sender, _id: user.uid }, timestamp: new Date() }]);
     setNewMessage('');
     socket.emit('stop typing', chatId);
     setIsTyping(false);
@@ -73,8 +100,70 @@ function ChatBox() {
     }, 1000);
   };
 
-  const handleVoiceRecord = () => {
-    alert('Voice message feature coming soon!');
+  // Voice Recording Logic
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaRecorderRef.current = new MediaRecorder(stream);
+      audioChunksRef.current = [];
+
+      mediaRecorderRef.current.ondataavailable = (e) => {
+        audioChunksRef.current.push(e.data);
+      };
+
+      mediaRecorderRef.current.onstop = async () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        await uploadVoiceMessage(audioBlob);
+        stream.getTracks().forEach(track => track.stop());
+      };
+
+      mediaRecorderRef.current.start();
+      setIsRecording(true);
+    } catch (error) {
+      alert('Microphone access denied or not available');
+      console.error(error);
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+    }
+  };
+
+  const uploadVoiceMessage = async (audioBlob) => {
+    setUploading(true);
+    try {
+      const fileName = `voice_${Date.now()}.webm`;
+      const { data, error } = await supabase.storage
+        .from('chat-images')
+        .upload(fileName, audioBlob, { contentType: 'audio/webm' });
+
+      if (error) {
+        alert('Voice upload error: ' + error.message);
+        return;
+      }
+
+      const { data: urlData } = supabase.storage
+        .from('chat-images')
+        .getPublicUrl(data.path);
+      const publicUrl = urlData.publicUrl;
+
+      const msg = {
+        sender: { _id: user.uid, username: user.email },
+        content: '',
+        chat: { _id: chatId, users: [{ _id: chatId }] },
+        messageType: 'voice',
+        fileUrl: publicUrl,
+      };
+      socket.emit('new message', msg);
+      setMessages(prev => [...prev, { ...msg, sender: { ...msg.sender, _id: user.uid }, timestamp: new Date() }]);
+    } catch (error) {
+      alert('Unexpected Error: ' + error.message);
+    } finally {
+      setUploading(false);
+    }
   };
 
   const handleImageUpload = async (file) => {
@@ -104,7 +193,7 @@ function ChatBox() {
         fileUrl: publicUrl,
       };
       socket.emit('new message', msg);
-      setMessages(prev => [...prev, { ...msg, sender: { ...msg.sender, _id: user.uid } }]);
+      setMessages(prev => [...prev, { ...msg, sender: { ...msg.sender, _id: user.uid }, timestamp: new Date() }]);
     } catch (error) {
       alert('Unexpected Error: ' + error.message);
     } finally {
@@ -123,6 +212,13 @@ function ChatBox() {
   const renderMessageContent = (msg) => {
     if (msg.messageType === 'image') {
       return <img src={msg.fileUrl} alt="Shared content" className="max-w-xs rounded-lg" />;
+    } else if (msg.messageType === 'voice') {
+      return (
+        <audio controls className="max-w-xs">
+          <source src={msg.fileUrl} type="audio/webm" />
+          Your browser does not support the audio element.
+        </audio>
+      );
     }
     return msg.content;
   };
@@ -152,7 +248,7 @@ function ChatBox() {
 
       <div className="flex-1 overflow-y-auto p-4">
         {messages.map((msg, i) => (
-          <div key={i} className={`chat ${msg.sender._id === user.uid ? 'chat-end' : 'chat-start'}`}>
+          <div key={msg.id || i} className={`chat ${msg.senderId === user.uid || msg.sender?._id === user.uid ? 'chat-end' : 'chat-start'}`}>
             <div className="chat-bubble p-2">
               {renderMessageContent(msg)}
             </div>
@@ -185,25 +281,21 @@ function ChatBox() {
         <button
           type="button"
           className={`btn btn-ghost btn-circle ${isRecording ? 'text-red-500' : ''}`}
-          onTouchStart={() => setIsRecording(true)}
-          onTouchEnd={() => {
-            setIsRecording(false);
-            handleVoiceRecord();
-          }}
-          onMouseDown={() => setIsRecording(true)}
-          onMouseUp={() => {
-            setIsRecording(false);
-            handleVoiceRecord();
-          }}
+          onTouchStart={startRecording}
+          onTouchEnd={stopRecording}
+          onMouseDown={startRecording}
+          onMouseUp={stopRecording}
+          onMouseLeave={stopRecording}
+          disabled={uploading}
         >
-          <FaMicrophone />
+          {isRecording ? <FaStop /> : <FaMicrophone />}
         </button>
         <input
           type="text"
           className="input input-bordered flex-1"
           value={newMessage}
           onChange={handleTyping}
-          placeholder={uploading ? "ပုံတင်နေသည်..." : "စာရိုက်ပါ..."}
+          placeholder={uploading ? "ပို့နေသည်..." : "စာရိုက်ပါ..."}
           disabled={uploading}
         />
         <button type="submit" className="btn btn-primary btn-circle" disabled={uploading}>
