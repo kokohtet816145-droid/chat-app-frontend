@@ -17,6 +17,7 @@ function Profile() {
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
 
+  // Load profile data on mount
   useEffect(() => {
     const fetchProfile = async () => {
       if (!user) return;
@@ -40,27 +41,52 @@ function Profile() {
 
   const handleProfilePicUpload = async (file) => {
     if (!file) return;
+    
+    // Check file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      alert('File size must be less than 5MB');
+      return;
+    }
+    
+    // Check file type
+    if (!file.type.startsWith('image/')) {
+      alert('Only image files are allowed');
+      return;
+    }
+    
     setUploading(true);
     try {
-      const fileName = `profile_${user.uid}_${Date.now()}`;
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${user.uid}_${Date.now()}.${fileExt}`;
+      
+      // Upload to Supabase Storage
       const { data, error } = await supabase.storage
         .from('chat-images')
-        .upload(fileName, file, { upsert: true });
+        .upload(fileName, file, {
+          cacheControl: '3600',
+          upsert: false
+        });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase error:', error);
+        throw new Error(error.message);
+      }
 
+      // Get public URL
       const { data: urlData } = supabase.storage
         .from('chat-images')
         .getPublicUrl(data.path);
       
       const publicUrl = urlData.publicUrl;
-      setProfilePic(publicUrl);
       
-      // Auto-save to Firestore
+      // Update state and Firestore
+      setProfilePic(publicUrl);
       const docRef = doc(db, "users", user.uid);
       await updateDoc(docRef, { profilePic: publicUrl });
-      alert('Profile picture updated!');
+      
+      alert('Profile picture updated successfully!');
     } catch (error) {
+      console.error('Upload error:', error);
       alert('Upload failed: ' + error.message);
     } finally {
       setUploading(false);
@@ -122,7 +148,9 @@ function Profile() {
                 accept="image/*"
                 ref={fileInputRef}
                 onChange={(e) => {
-                  handleProfilePicUpload(e.target.files[0]);
+                  if (e.target.files && e.target.files[0]) {
+                    handleProfilePicUpload(e.target.files[0]);
+                  }
                   e.target.value = '';
                 }}
                 style={{ display: 'none' }}
