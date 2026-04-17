@@ -6,7 +6,7 @@ import { db } from '../firebase';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
 import { auth } from '../firebase';
-import { FaSearch, FaSignOutAlt, FaUserShield } from 'react-icons/fa';
+import { FaSearch, FaSignOutAlt, FaUserShield, FaUserCircle } from 'react-icons/fa';
 
 function Chats() {
   const { user } = useAuth();
@@ -62,6 +62,7 @@ function Chats() {
           <h2 className="text-xl font-bold">Chats ({users.length})</h2>
           <div className="flex gap-2">
             {isAdmin && <button className="btn btn-ghost btn-circle" onClick={() => navigate('/admin')}><FaUserShield className="text-warning" /></button>}
+            <Link to="/profile" className="btn btn-ghost btn-circle"><FaUserCircle /></Link>
             <button className="btn btn-ghost btn-circle" onClick={handleLogout}><FaSignOutAlt /></button>
           </div>
         </div>

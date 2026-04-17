@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/AuthContext';
 import { db } from '../firebase';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
-import { FaArrowLeft, FaSave } from 'react-icons/fa';
+import { FaArrowLeft, FaSave, FaUserCircle } from 'react-icons/fa';
 
 function Profile() {
   const { user } = useAuth();
@@ -56,44 +56,59 @@ function Profile() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 p-4">
+    <div className="min-h-screen bg-gradient-to-br from-purple-900 via-indigo-800 to-blue-900 p-4">
       <div className="max-w-md mx-auto">
         <div className="flex items-center gap-4 mb-6">
-          <button className="btn btn-ghost btn-circle" onClick={() => navigate('/chats')}>
+          <button className="btn btn-ghost btn-circle text-white" onClick={() => navigate('/chats')}>
             <FaArrowLeft />
           </button>
-          <h1 className="text-2xl font-bold">Profile</h1>
+          <h1 className="text-2xl font-bold text-white">Profile</h1>
         </div>
 
-        <div className="card bg-white shadow-xl">
-          <div className="card-body">
-            <div className="form-control">
-              <label className="label">Email</label>
-              <input type="email" className="input input-bordered" value={user?.email || ''} disabled />
+        <div className="backdrop-blur-lg bg-white/10 rounded-3xl shadow-2xl p-8 border border-white/20">
+          <div className="flex justify-center mb-6">
+            <div className="relative w-24 h-24 rounded-full overflow-hidden border-4 border-white/30 shadow-lg bg-white/20 flex items-center justify-center">
+              <FaUserCircle className="text-white text-6xl" />
             </div>
-            <div className="form-control">
-              <label className="label">Username</label>
+          </div>
+
+          <div className="space-y-4">
+            <div>
+              <label className="label text-white/70">Email</label>
               <input
-                type="text"
-                className="input input-bordered"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
+                type="email"
+                className="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-xl text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-purple-400"
+                value={user?.email || ''}
+                disabled
               />
             </div>
-            <div className="form-control">
-              <label className="label">Bio</label>
+            <div>
+              <label className="label text-white/70">Username</label>
+              <input
+                type="text"
+                className="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-xl text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-purple-400"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="Enter username"
+              />
+            </div>
+            <div>
+              <label className="label text-white/70">Bio</label>
               <textarea
-                className="textarea textarea-bordered"
+                className="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-xl text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-purple-400 resize-none"
+                rows="3"
                 value={bio}
                 onChange={(e) => setBio(e.target.value)}
+                placeholder="Tell us about yourself..."
               />
             </div>
             <button
-              className={`btn btn-primary mt-4 ${saving ? 'loading' : ''}`}
+              className={`w-full py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition duration-200 ${saving ? 'opacity-50 cursor-not-allowed' : ''}`}
               onClick={handleSave}
               disabled={saving}
             >
-              <FaSave className="mr-2" /> Save Changes
+              <FaSave className="inline mr-2" />
+              {saving ? 'Saving...' : 'Save Changes'}
             </button>
           </div>
         </div>
