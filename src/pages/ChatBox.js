@@ -256,11 +256,12 @@ function ChatBox() {
         <button
           type="button"
           className={`btn btn-ghost btn-circle ${isRecording ? 'text-red-500' : ''}`}
-          onTouchStart={startRecording}
-          onTouchEnd={stopRecording}
-          onMouseDown={startRecording}
-          onMouseUp={stopRecording}
-          onMouseLeave={stopRecording}
+          onTouchStart={(e) => { e.preventDefault(); startRecording(); }}
+          onTouchEnd={(e) => { e.preventDefault(); stopRecording(); }}
+          onTouchCancel={(e) => { e.preventDefault(); stopRecording(); }}
+          onMouseDown={(e) => { e.preventDefault(); startRecording(); }}
+          onMouseUp={(e) => { e.preventDefault(); stopRecording(); }}
+          onMouseLeave={(e) => { e.preventDefault(); if (isRecording) stopRecording(); }}
           disabled={uploading}
         >
           {isRecording ? <FaStop /> : <FaMicrophone />}
